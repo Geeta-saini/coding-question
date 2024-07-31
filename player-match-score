@@ -1,0 +1,189 @@
+const express = require('express')
+
+const {open} = require('sqlite')
+const sqlite3 = require('sqlite3')
+
+const path = require('path')
+const dbPath = path.join(__dirname, 'cricketMatchDetails.db')
+
+const app = express()
+app.use(express.json())
+module.exports = app
+
+let db = null
+
+const initializeDBAndServer = async () => {
+  try {
+    db = await open({
+      filename: dbPath,
+      driver: sqlite3.Database,
+    })
+    app.listen(3000, () =>
+      console.log('Server Running at http://localhost:3000/'),
+    )
+  } catch (e) {
+    console.log(`DB Error: ${e.message}`)
+    process.exit(1)
+  }
+}
+
+initializeDBAndServer()
+
+const convertPlayerDbObjtoResponseObj = dbobj => {
+  return {
+    playerId: dbobj.player_id,
+    playerName: dbobj.player_name,
+  }
+}
+const convertMatchDbObjtoResponseObj = dbobj => {
+  return {
+    matchId: dbobj.match_id,
+    match: dbobj.match,
+    year: dbobj.year,
+  }
+}
+
+const convertPlayerMatchDbObjtoResponseObj = dbobj => {
+  return {
+    playerMatchId: dbobj.player_match_id,
+    playerId: dbobj.player_id,
+    matchId: dbobj.match_id,
+    score: dbobj.score,
+    fours: dbobj.fours,
+    sixes: dbobj.sixes,
+  }
+}
+//API-1
+app.get('/players/', async (request, response) => {
+  const getPlayerQuery = `
+  SELECT 
+    *
+ FROM
+ player_details;`
+  const playerArray = await db.all(getPlayerQuery)
+
+  response.send(playerArray.map(each => convertPlayerDbObjtoResponseObj(each)))
+})
+
+//API-2
+
+app.get('/players/:playerId/', async (request, response) => {
+  const {playerId} = request.params
+  const getplayerQuery = `
+    SELECT
+      *
+    FROM
+      player_Details
+      WHERE
+      player_id = ${playerId};`
+  const player = await db.get(getplayerQuery)
+  response.send(convertPlayerDbObjtoResponseObj(player))
+})
+
+//API-3
+
+app.put('/players/:playerId/', async (request, response) => {
+  const {playerName} = request.body
+  const {playerId} = request.params
+  const updatePlayerQuery = `
+    UPDATE
+      player_Details
+      SET
+      player_name =  '${playerName}'
+      WHERE
+      player_id=${playerId};`
+
+  const player = await db.run(updatePlayerQuery)
+
+  response.send('Player Details Updated')
+})
+
+//API-4
+
+app.get('/matches/:matchId/', async (request, response) => {
+  const {matchId} = request.params
+  const getMatchQuery = `
+    SELECT
+      *
+    FROM
+      match_Details
+      WHERE
+      match_id = ${matchId};`
+  const match = await db.get(getMatchQuery)
+  response.send(convertMatchDbObjtoResponseObj(match))
+})
+
+//API-5
+
+app.get('/players/:playerId/matches/', async (request, response) => {
+  const {playerId} = request.params
+  const getPlayerMatchQuery = `
+    SELECT
+      *
+    FROM
+      player_match_score
+      NATURAL JOIN match_details 
+      WHERE
+      player_id = ${playerId};`
+  const playermatch = await db.all(getPlayerMatchQuery)
+  response.send(playermatch.map(each => convertMatchDbObjtoResponseObj(each)))
+})
+
+//API-6
+
+app.get('/matches/:matchId/players/', async (request, response) => {
+  const {matchId} = request.params
+  const getMatchPlayerQuery = `
+	    SELECT
+	      player_match_score.player_id AS playerId,
+	      player_name AS playerName
+	    FROM player_details INNER JOIN player_match_score on player_details.player_id=player_match_score.player_id
+        WHERE match_id=${matchId};`
+  const matchplayer = await db.all(getMatchPlayerQuery)
+  response.send(matchplayer)
+})
+
+//API-7
+
+app.get('/players/:playerId/playerScores/', async (request, response) => {
+  const {playerId} = request.params
+  const getMatchPlayerQuery = `
+	    SELECT
+    player_details.player_id AS playerId,
+    player_details.player_name AS playerName,
+    SUM(player_match_score.score) AS totalScore,
+    SUM(fours) AS totalFours,
+    SUM(sixes) AS totalSixes FROM 
+    player_details INNER JOIN player_match_score ON
+    player_details.player_id = player_match_score.player_id
+    WHERE player_details.player_id = ${playerId};
+    `
+  const matchplayer = await db.get(getMatchPlayerQuery)
+  response.send(matchplayer)
+})
+/*
+GET http://localhost:3000/players/
+###
+GET http://localhost:3000/players/3/
+
+###
+
+PUT http://localhost:3000/players/3/
+Content-Type:application/json
+
+{
+  "playerName": "Raju"
+}
+###
+
+GET http://localhost:3000/matches/18/
+
+###
+GET http://localhost:3000/players/5/matches/
+
+###
+GET http://localhost:3000/matches/3/players/
+
+###
+GET http://localhost:3000/players/5/playerscores/
+*/
