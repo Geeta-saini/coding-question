@@ -123,7 +123,7 @@ app.post('/todos/', async (request, response) => {
 
 app.put('/todos/:todoId/', async (request, response) => {
   const {todoId} = request.params
-  const updateColumn = ''
+  let updateColumn = ''
   const requestBody = request.body
 
   switch (true) {
