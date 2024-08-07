@@ -163,7 +163,7 @@ app.put('/todos/:todoId/', async (request, response) => {
     priority = '${priority}',
     status = '${status}'
     where 
-    id = $(todoId);`
+    id = ${todoId};`
   await db.run(updateToDoQuery)
 
   response.send(`${updateColumn} Updated`)
